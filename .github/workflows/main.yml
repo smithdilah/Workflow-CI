@@ -55,7 +55,8 @@ jobs:
           mlflow run MLProject \
             --env-manager=local \
             --run-name rf_student_model \
-            --experiment-name "Students_Performance_RF"
+            --experiment-name "students-experiment"
+
 
       # 6. ambil run_id terakhir (paling baru) dari eksperimen
       - name: Get latest MLflow run_id
