@@ -18,7 +18,7 @@ jobs:
     # ► ENV GLOBAL ◄
     env:
       # ↳ ganti URL Dagshub sesuai repo Dagshub‑mu
-      MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/student_performance.mlflow
+      MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow/
       MLFLOW_TRACKING_USERNAME: smithdilah
       # password/token Dagshub disimpan di GitHub Secrets
       MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
