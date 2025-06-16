@@ -36,10 +36,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      # 🔧 Perubahan utama: langsung jalankan script, bukan mlflow run
       - name: Run training script
         run: |
-          python students_autolog_local.py
+          python modeling.py
 
       - name: Get latest MLflow run_id
         id: get_run
