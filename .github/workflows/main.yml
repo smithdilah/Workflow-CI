@@ -69,14 +69,18 @@ jobs:
               -o "./model_dir/$file"
           done
      
-      # Step untuk mendownload artifact yang sebelumnya diupload
-      - name: Download model artifact
-        uses: actions/download-artifact@v4
+ 
+    # Upload sebagai artifact GitHub
+      - name: Upload to GitHub artifact
+        uses: actions/upload-artifact@v4
         with:
           name: rf_model_artifact
-          path: rf_model_dir
+          path: ./model_dir
 
-      # Build Docker Image dari model MLflow
+      # Step untuk membangun Docker image dari model MLflow
       - name: Build Docker Image from MLflow model
         run: |
-          mlflow models build-docker --model-uri ./model_dir --install-mlflow --name nurfdlah/students-performance-model
+          mlflow models build-docker \
+            --model-uri ./model_dir \
+            --install-mlflow \
+            --name smithdilah/students-performance-model
