@@ -68,28 +68,7 @@ jobs:
               "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
               -o "./model_dir/$file"
           done
-      # Overwrite file MLmodel supaya valid YAML
-      - name: Overwrite MLmodel for compatibility
-        run: |
-          echo "time_created: '2024-06-15 10:00:00.000000'
-          flavors:
-            python_function:
-              loader_module: mlflow.sklearn
-              python_version: 3.10.12
-              env: conda.yaml
-              model_path: model.pkl
-            sklearn:
-              pickled_model: model.pkl
-              sklearn_version: 1.2.2
-              code: null
-              serialization_format: cloudpickle
-              cloudpickle_version: 2.2.1
-          model_path: model.pkl
-          run_id: null
-          signature: null
-          input_example: input_example.json
-          " > ./model_dir
-
+     
       # Upload sebagai artifact GitHub
       - name: Upload to GitHub artifact
         uses: actions/upload-artifact@v4
