@@ -1,9 +1,10 @@
-name: students MLflow
+name: CI/CD MLflow Students
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 env:
   MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
@@ -11,42 +12,33 @@ env:
   MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
 
 jobs:
-  train-log-model:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout source code
+      # 1. Checkout code
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Setup Python
-      - name: Set up Python 3.11
+      # 2. Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      # Cek environment & struktur file
-      - name: Check Environment
-        run: |
-          python --version
-          echo "MLFLOW_TRACKING_URI : $MLFLOW_TRACKING_URI"
-          echo "MLFLOW_TRACKING_USERNAME : $MLFLOW_TRACKING_USERNAME"
-          echo "MLFLOW_TRACKING_PASSWORD exists? : ${MLFLOW_TRACKING_PASSWORD:+YES}"
-          ls -R
-
-      # Install dependencies
+      # 3. Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      # Run training & logging model
-      - name: Run MLflow modeling script
+      # 4. Run training script
+      - name: Train Model
         run: |
           cd MLProject
           python modeling.py
 
-      # Get latest MLflow run_id
+      # 5. Get latest run_id
       - name: Get latest MLflow run_id
         id: get_run
         run: |
@@ -54,24 +46,31 @@ jobs:
           echo "mlflow.set_tracking_uri(\"$MLFLOW_TRACKING_URI\")" >> get_run.py
           echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
           echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
-          echo "if exp is None: raise Exception(\"Experiment 'students-experiment' not found!\")" >> get_run.py
-          echo "runs = client.search_runs(exp.experiment_id, order_by=[\"start_time DESC\"], max_results=1)" >> get_run.py
-          echo "run_id = runs[0].info.run_id" >> get_run.py
-          echo "print(\"Found RUN_ID:\", run_id)" >> get_run.py
-          echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
+          echo "if exp is None: raise Exception(\"Experiment not found\")" >> get_run.py
+          echo "run_id = client.search_runs(exp.experiment_id, order_by=[\"start_time DESC\"], max_results=1)[0].info.run_id" >> get_run.py
+          echo "print(f\"RUN_ID={run_id}\")" >> get_run.py
+          echo "with open(os.environ[\"GITHUB_ENV\"], \"a\") as f: f.write(f\"RUN_ID={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      # Download model.pkl from DagsHub artifacts
-      - name: Download model.pkl from DagsHub
+      # 6. Build Docker image
+      - name: Build Docker Image
         run: |
-          mkdir -p ./model_dir
-          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/model.pkl" \
-            -o ./model_dir/model.pkl
+          pip install mlflow[extras]
+          mlflow models build-docker --model-uri "runs:/$RUN_ID/model" --name students-performance-model
 
-      # Upload model artifact (opsional)
-      - name: Upload model artifact
-        uses: actions/upload-artifact@v4
+      # 7. Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
         with:
-          name: rf_model
-          path: ./model_dir
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # 8. Tag Docker image
+      - name: Tag Docker Image
+        run: |
+          docker tag students-performance-model nurfdlh/students-performance-model:latest
+
+      # 9. Push Docker image
+      - name: Push Docker Image
+        run: |
+          docker push nurfdlh/students-performance-model:latest
