@@ -76,11 +76,21 @@ jobs:
           name: rf_model_artifact
           path: ./model_dir
 
-      # Build a Docker image from the trained MLflow model
-      - name: Build Docker Model
+      # Build Docker image from MLflow model
+      - name: Build Docker image from MLflow model
         run: |
-          mlflow models build-docker --model-uri ./model_dir --name nurfdlah/students-performance-model--name nurfdlah/students-performance-model
+          mlflow models build-docker --model-uri ./model_dir --install-mlflow
       
+      # Tag Docker image with Docker Hub repo name
+      - name: Tag Docker image
+        run: |
+          docker tag mlflow-pyfunc nurfdlah/students-performance-model:latest
+      
+      # Push Docker image to Docker Hub
+      - name: Push Docker image
+        run: |
+          docker push nurfdlah/students-performance-model:latest
+
       # Login to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
