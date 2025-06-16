@@ -36,12 +36,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      - name: Run MLflow project
+      # 🔧 Perubahan utama: langsung jalankan script, bukan mlflow run
+      - name: Run training script
         run: |
-          mlflow run MLProject \
-            --env-manager=local \
-            --run-name rf_student_model \
-            --experiment-name Students_Performance_RF
+          python students_autolog_local.py
 
       - name: Get latest MLflow run_id
         id: get_run
@@ -49,9 +47,9 @@ jobs:
           python <<'PY'
           import mlflow, os
           client = mlflow.tracking.MlflowClient()
-          exp = client.get_experiment_by_name("Students_Performance_RF")
+          exp = client.get_experiment_by_name("students-experiment")
           if exp is None:
-              raise Exception("Experiment 'Students_Performance_RF' not found!")
+              raise Exception("Experiment 'students-experiment' not found!")
           runs = client.search_runs(exp.experiment_id, order_by=["start_time DESC"], max_results=1)
           run_id = runs[0].info.run_id
           print("Found RUN_ID:", run_id)
