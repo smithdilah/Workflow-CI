@@ -56,19 +56,18 @@ jobs:
           python get_run.py
 
       - name: Download model artifacts using MLflow CLI
+        env:
+          MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
-          export MLFLOW_TRACKING_URI="https://dagshub.com/smithdilah/students_dagshub.mlflow"
-          export MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME}
-          export MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD}
-
+          pip install mlflow
           RUN_ID=${{ steps.get_run.outputs.run_id }}
-          mkdir -p model_dir
           mlflow artifacts download \
-          --run-id $RUN_ID \
-          --artifact-path model \
-          --dst-path model_dir
+            --run-id $RUN_ID \
+            --artifact-path model \
+            --dst-path model_dir
 
-          echo "✅ Model downloaded to model_dir/"
 
 
 
