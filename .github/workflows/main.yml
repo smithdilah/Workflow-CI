@@ -15,38 +15,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout source code
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Setup Python
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      # Check environment
-      - name: Check Environment Variables
-        run: |
-          python --version
-          echo "MLFLOW_TRACKING_URI : $MLFLOW_TRACKING_URI"
-          echo "MLFLOW_TRACKING_USERNAME : $MLFLOW_TRACKING_USERNAME"
-          echo "MLFLOW_TRACKING_PASSWORD exists? : ${MLFLOW_TRACKING_PASSWORD:+YES}"
-          ls -R
-
-      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      # Run MLflow modeling script
       - name: Run MLflow modeling script
         run: |
           cd MLProject
           python modeling.py
 
-      # Get latest MLflow run_id
       - name: Get latest MLflow run_id
         id: get_run
         run: |
@@ -61,7 +47,6 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      # Download model.pkl from DagsHub
       - name: Download model.pkl from DagsHub artifacts
         run: |
           mkdir -p ./model_dir
@@ -69,42 +54,46 @@ jobs:
             "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/model.pkl" \
             -o ./model_dir/model.pkl
 
-      # Upload model artifact (optional)
-      - name: Upload model artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rf_model
-          path: ./model_dir
+      - name: Create inference.py for Flask serving
+        run: |
+          echo "from flask import Flask, request, jsonify" > inference.py
+          echo "import pickle" >> inference.py
+          echo "import pandas as pd" >> inference.py
+          echo "app = Flask(__name__)" >> inference.py
+          echo "model = pickle.load(open('model.pkl', 'rb'))" >> inference.py
+          echo "@app.route('/predict', methods=['POST'])" >> inference.py
+          echo "def predict():" >> inference.py
+          echo "    data = request.get_json(force=True)" >> inference.py
+          echo "    df = pd.DataFrame([data])" >> inference.py
+          echo "    prediction = model.predict(df)" >> inference.py
+          echo "    return jsonify({'prediction': prediction.tolist()})" >> inference.py
+          echo "if __name__ == '__main__':" >> inference.py
+          echo "    app.run(host='0.0.0.0', port=5000)" >> inference.py
 
-      # Create Dockerfile
-      - name: Create Dockerfile for model serving
+      - name: Create Dockerfile
         run: |
           echo "FROM python:3.11-slim" > Dockerfile
           echo "WORKDIR /app" >> Dockerfile
           echo "COPY ./model_dir/model.pkl ./model.pkl" >> Dockerfile
-          echo "COPY MLProject/inference.py ./inference.py" >> Dockerfile
+          echo "COPY ./inference.py ./inference.py" >> Dockerfile
           echo "RUN pip install -U pip && pip install pandas scikit-learn flask" >> Dockerfile
           echo "EXPOSE 5000" >> Dockerfile
           echo "CMD [\"python\", \"inference.py\"]" >> Dockerfile
 
-      # Build Docker image
       - name: Build Docker image
         run: |
           docker build -t students-performance-image .
 
-      # Login to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      # Tag Docker image sesuai dengan DockerHub repo kamu
       - name: Tag Docker Image
         run: |
           docker tag students-performance-image nurfdlah/students-performance-model:latest
 
-      # Push Docker image ke DockerHub
       - name: Push Docker Image
         run: |
           docker push nurfdlah/students-performance-model:latest
