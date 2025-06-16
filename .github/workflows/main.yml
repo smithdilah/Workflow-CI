@@ -1,4 +1,4 @@
-name: CI/CD Students Model - MLflow to DockerHub
+name: Students Model - MLflow to DockerHub
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
         cd MLProject
         python modeling.py
 
-    - name: Get latest run_id from DagsHub MLflow
+    - name: Get latest run_id and artifact URI from DagsHub MLflow
       id: get_run
       run: |
         echo "from mlflow import tracking" > get_run.py
@@ -42,30 +42,33 @@ jobs:
         echo "exp = client.get_experiment_by_name('students-experiment')" >> get_run.py
         echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'])" >> get_run.py
         echo "run_id = runs[0].info.run_id" >> get_run.py
-        echo "print(f'run_id={run_id}')" >> get_run.py
+        echo "artifact_uri = runs[0].info.artifact_uri" >> get_run.py
         echo "with open('${{ github.env }}', 'a') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
+        echo "with open('${{ github.env }}', 'a') as f: f.write(f'ARTIFACT_URI={artifact_uri}\\n')" >> get_run.py
         python get_run.py
 
     - name: Download model artifacts from DagsHub
       run: |
         mkdir -p model_dir
         FILES="MLmodel conda.yaml requirements.txt model.pkl"
+        MODEL_URL_BASE="${ARTIFACT_URI/model:\/\/dagshub.com/https:\/\/dagshub.com\/smithdilah\/students_dagshub.mlflow\/raw\/mlruns\/0\/$RUN_ID\/artifacts}"
+        
         for FILE in $FILES; do
-          RESPONSE=$(curl -s -w "%{http_code}" -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/$RUN_ID/artifacts/model/$FILE" \
-            -o model_dir/$FILE)
+          URL="$MODEL_URL_BASE/$FILE"
+          echo "🔽 Downloading $URL"
+          RESPONSE=$(curl -s -w "%{http_code}" -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" "$URL" -o model_dir/$FILE)
           if [ "$RESPONSE" -ne 200 ]; then
             echo "❌ Gagal mengunduh $FILE. Status code: $RESPONSE"
             exit 1
           fi
         done
 
-    - name: Validate MLmodel file (YAML Check)
+    - name: Validate MLmodel file
       run: |
-        echo "✅ Mengecek isi awal MLmodel:"
+        echo "📄 MLmodel Preview:"
         head -n 20 model_dir/MLmodel
-        echo "✅ Mengecek format YAML..."
-        python -c "import yaml; f='model_dir/MLmodel'; yaml.safe_load(open(f))"
+        echo "✅ Validating YAML"
+        python -c "import yaml; yaml.safe_load(open('model_dir/MLmodel'))"
 
     - name: Build Docker image
       run: |
