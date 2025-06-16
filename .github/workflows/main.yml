@@ -75,11 +75,24 @@ jobs:
           name: rf_model
           path: ./model_dir
 
-      # (Optional) Serve model locally (for DEV)
-      # Note: This step will not run inside GitHub Actions CI — just intended for local dev
-      - name: Serve model locally (DEV ONLY)
-        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
+     # Build Docker image from model
+      - name: Build Docker Model
         run: |
-          echo "Starting MLflow model server..."
-          nohup mlflow models serve -m ./model_dir --port 5005 --env-manager=local > serve.log 2>&1 &
-          echo "Model is being served at http://127.0.0.1:5005/invocations"
+          mlflow models build-docker --model-uri ./model_dir --name nurfdlah/students-performance-model
+      
+      # Login to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      
+      # Tag Docker image
+      - name: Tag Docker Image
+        run: |
+          docker tag nurfdlah/students-performance-model nurfdlah/students-performance-model:latest
+      
+      # Push Docker image to Docker Hub
+      - name: Push Docker Image
+        run: |
+          docker push nurfdlah/students-performance-model:latest
