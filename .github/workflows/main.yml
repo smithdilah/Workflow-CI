@@ -36,9 +36,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      - name: Run training script
+      - name: Run modeling.py (MLflow autolog)
         run: |
-          python modeling.py
+          python MLProject/modeling.py
 
       - name: Get latest MLflow run_id
         id: get_run
@@ -79,9 +79,4 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Push Docker image
-        run: |
-          docker tag smithdilah/student-performance-model smithdilah/student-performance-model:latest
-          docker push smithdilah/student-performance-model:latest
+          password: ${{ secrets.DOCKERHUB
