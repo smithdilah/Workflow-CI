@@ -44,26 +44,27 @@ jobs:
       - name: Get latest MLflow run_id
         id: get_run
         run: |
-          python <<'PY'
-          import mlflow, os
-          mlflow.set_tracking_uri("https://dagshub.com/smithdilah/students_dagshub.mlflow")
-          client = mlflow.tracking.MlflowClient()
-          exp = client.get_experiment_by_name("students-experiment")
-          if exp is None:
-              raise Exception("Experiment 'students-experiment' not found!")
-          runs = client.search_runs(exp.experiment_id, order_by=["start_time DESC"], max_results=1)
-          run_id = runs[0].info.run_id
-          print("Found RUN_ID:", run_id)
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"run_id={run_id}\n")
-          PY
+          echo "import mlflow, os" > get_run.py
+          echo "mlflow.set_tracking_uri(\"https://dagshub.com/smithdilah/students_dagshub.mlflow\")" >> get_run.py
+          echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
+          echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
+          echo "if exp is None: raise Exception(\"Experiment 'students-experiment' not found!\")" >> get_run.py
+          echo "runs = client.search_runs(exp.experiment_id, order_by=[\"start_time DESC\"], max_results=1)" >> get_run.py
+          echo "run_id = runs[0].info.run_id" >> get_run.py
+          echo "print(\"Found RUN_ID:\", run_id)" >> get_run.py
+          echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
+          python get_run.py
 
       - name: Download model artifacts
         run: |
-          mlflow artifacts download \
-            --run-id ${{ steps.get_run.outputs.run_id }} \
-            --artifact-path model \
-            -d ./model_dir
+          echo "import mlflow" > download_artifacts.py
+          echo "from mlflow.tracking import MlflowClient" >> download_artifacts.py
+          echo "mlflow.set_tracking_uri(\"https://dagshub.com/smithdilah/students_dagshub.mlflow\")" >> download_artifacts.py
+          echo "client = MlflowClient()" >> download_artifacts.py
+          echo "run_id = \"${{ steps.get_run.outputs.run_id }}\"" >> download_artifacts.py
+          echo "client.download_artifacts(run_id=run_id, path=\"model\", dst_path=\"./model_dir\")" >> download_artifacts.py
+          echo "print(\"✅ Model artifacts downloaded to ./model_dir\")" >> download_artifacts.py
+          python download_artifacts.py
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
