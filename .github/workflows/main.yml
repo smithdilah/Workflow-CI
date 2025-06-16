@@ -55,14 +55,21 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      - name: Download model artifacts manually via URL
+      - name: Download model artifacts using MLflow CLI
         run: |
-         mkdir -p model_dir
-         RUN_ID=${{ steps.get_run.outputs.run_id }}
-         wget --user=${MLFLOW_TRACKING_USERNAME} --password=${MLFLOW_TRACKING_PASSWORD} \
-         https://dagshub.com/smithdilah/students_dagshub.mlflow/artifacts/${RUN_ID}/model/model.pkl \
-         -O model_dir/model.pkl
-         echo "✅ model.pkl downloaded to model_dir/"
+          export MLFLOW_TRACKING_URI="https://dagshub.com/smithdilah/students_dagshub.mlflow"
+          export MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME}
+          export MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD}
+
+          RUN_ID=${{ steps.get_run.outputs.run_id }}
+          mkdir -p model_dir
+          mlflow artifacts download \
+          --run-id $RUN_ID \
+          --artifact-path model \
+          --dst-path model_dir
+
+          echo "✅ Model downloaded to model_dir/"
+
 
 
       - name: Upload model artifact
