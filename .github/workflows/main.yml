@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.12.7"
 
-      # Cek environment & struktur file
+      # Check environment
       - name: Check Environment
         run: |
           python --version
@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      # Run training & logging model
+      # Run MLflow training script
       - name: Run MLflow modeling script
         run: |
           cd MLProject
@@ -65,9 +65,7 @@ jobs:
       - name: Download all model artifacts from DagsHub
         run: |
           mkdir -p ./model_dir
-
-          # Daftar file artefak model MLflow yang umum
-          files="MLmodel conda.yaml requirements.txt model.pkl model.json"
+          files="MLmodel conda.yaml requirements.txt model.pkl input_example.json serving_input_example.json metric_info.json"
 
           for file in $files; do
             echo "Downloading $file..."
@@ -76,7 +74,7 @@ jobs:
               -o "./model_dir/$file"
           done
 
-      # Upload model artifact
+      # Upload model artifacts to GitHub
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
