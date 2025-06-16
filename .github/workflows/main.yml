@@ -1,51 +1,57 @@
-name: Deploy Student Performance Model
+name: students MLflow
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+env:
+  MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
+  MLFLOW_TRACKING_USERNAME: smithdilah
+  MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+
 jobs:
   train-deploy:
     runs-on: ubuntu-latest
 
-    env:
-      MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
-      MLFLOW_TRACKING_USERNAME: smithdilah
-      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
-
     steps:
+      # Checkout source code
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Setup Python
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Check environment
+      # Check environment
+      - name: Check Environment Variables
         run: |
           python --version
-          echo "URI  : $MLFLOW_TRACKING_URI"
-          echo "USER : $MLFLOW_TRACKING_USERNAME"
-          echo "PWD? : ${MLFLOW_TRACKING_PASSWORD:+YES}"
+          echo "MLFLOW_TRACKING_URI : $MLFLOW_TRACKING_URI"
+          echo "MLFLOW_TRACKING_USERNAME : $MLFLOW_TRACKING_USERNAME"
+          echo "MLFLOW_TRACKING_PASSWORD exists? : ${MLFLOW_TRACKING_PASSWORD:+YES}"
           ls -R
 
+      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
+      # Run modeling script
       - name: Run MLflow modeling script
         run: |
           cd MLProject
           python modeling.py
 
+      # Get latest MLflow run_id
       - name: Get latest MLflow run_id
         id: get_run
         run: |
           echo "import mlflow, os" > get_run.py
-          echo "mlflow.set_tracking_uri(\"https://dagshub.com/smithdilah/students_dagshub.mlflow\")" >> get_run.py
+          echo "mlflow.set_tracking_uri(\"$MLFLOW_TRACKING_URI\")" >> get_run.py
           echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
           echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
           echo "if exp is None: raise Exception(\"Experiment 'students-experiment' not found!\")" >> get_run.py
@@ -55,26 +61,24 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
+      # Download model artifacts
       - name: Download model artifacts
-        env:
-          MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           pip install mlflow
-          echo "Downloading model artifact from RUN_ID: ${{ steps.get_run.outputs.run_id }}"
+          echo "Downloading model from RUN_ID: ${{ steps.get_run.outputs.run_id }}"
           mlflow artifacts download \
             --run-id ${{ steps.get_run.outputs.run_id }} \
             --artifact-path model \
-            -d ./downloaded
-          mv ./downloaded/model ./model_dir
+            -d ./model_dir
 
+      # Upload model artifact (optional)
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
           name: rf_model
           path: ./model_dir
 
+      # Build Docker image
       - name: Build Docker image
         run: |
           pip install mlflow
@@ -82,12 +86,14 @@ jobs:
             --model-uri ./model_dir \
             --name smithdilah/student-performance-model
 
+      # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
+      # Push Docker image to Docker Hub
       - name: Push Docker image
         run: |
           docker tag smithdilah/student-performance-model smithdilah/student-performance-model:latest
