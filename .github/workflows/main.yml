@@ -55,17 +55,19 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      - name: Download model artifacts using MLflow CLI
+      - name: Download model artifacts
         env:
           MLFLOW_TRACKING_URI: https://dagshub.com/smithdilah/students_dagshub.mlflow
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           pip install mlflow
+          echo "Downloading model artifact from RUN_ID: ${{ steps.get_run.outputs.run_id }}"
           mlflow artifacts download \
             --run-id ${{ steps.get_run.outputs.run_id }} \
             --artifact-path model \
-            --dst-path model_dir
+            -d ./downloaded
+          mv ./downloaded/model ./model_dir
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
@@ -75,6 +77,7 @@ jobs:
 
       - name: Build Docker image
         run: |
+          pip install mlflow
           mlflow models build-docker \
             --model-uri ./model_dir \
             --name smithdilah/student-performance-model
