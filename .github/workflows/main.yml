@@ -1,4 +1,4 @@
-name: students MLflow
+name: students MLflow CI/CD
 
 on:
   push:
@@ -15,85 +15,81 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    # Checkout source code
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+    # Set up Python
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r MLProject/requirements.txt
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r MLProject/requirements.txt
 
-      - name: Run MLflow modeling script
-        run: |
-          cd MLProject
-          python modeling.py
+    # Run training script
+    - name: Train model with MLflow
+      run: |
+        cd MLProject
+        python modeling.py
 
-      - name: Get latest MLflow run_id
-        id: get_run
-        run: |
-          echo "import mlflow, os" > get_run.py
-          echo "mlflow.set_tracking_uri(\"$MLFLOW_TRACKING_URI\")" >> get_run.py
-          echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
-          echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
-          echo "if exp is None: raise Exception(\"Experiment 'students-experiment' not found!\")" >> get_run.py
-          echo "runs = client.search_runs(exp.experiment_id, order_by=[\"start_time DESC\"], max_results=1)" >> get_run.py
-          echo "run_id = runs[0].info.run_id" >> get_run.py
-          echo "print(\"Found RUN_ID:\", run_id)" >> get_run.py
-          echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
-          python get_run.py
+    # Get latest MLflow run_id
+    - name: Get latest run_id from MLflow
+      id: get_run
+      run: |
+        echo "import mlflow, os" > get_run.py
+        echo "mlflow.set_tracking_uri(\"$MLFLOW_TRACKING_URI\")" >> get_run.py
+        echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
+        echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
+        echo "if exp is None: raise Exception(\"Experiment not found\")" >> get_run.py
+        echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'], max_results=1)" >> get_run.py
+        echo "run_id = runs[0].info.run_id" >> get_run.py
+        echo "print(f'run_id={run_id}')" >> get_run.py
+        echo "with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write(f'run_id={run_id}\\n')" >> get_run.py
+        python get_run.py
 
-      - name: Download model.pkl from DagsHub artifacts
-        run: |
-          mkdir -p ./model_dir
-          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/model.pkl" \
-            -o ./model_dir/model.pkl
+    # Download model artifacts
+    - name: Download model artifacts
+      run: |
+        pip install mlflow
+        mlflow artifacts download \
+          --run-id ${{ steps.get_run.outputs.run_id }} \
+          --artifact-path model \
+          -d ./model_dir
 
-      - name: Create inference.py for Flask serving
-        run: |
-          echo "from flask import Flask, request, jsonify" > inference.py
-          echo "import pickle" >> inference.py
-          echo "import pandas as pd" >> inference.py
-          echo "app = Flask(__name__)" >> inference.py
-          echo "model = pickle.load(open('model.pkl', 'rb'))" >> inference.py
-          echo "@app.route('/predict', methods=['POST'])" >> inference.py
-          echo "def predict():" >> inference.py
-          echo "    data = request.get_json(force=True)" >> inference.py
-          echo "    df = pd.DataFrame([data])" >> inference.py
-          echo "    prediction = model.predict(df)" >> inference.py
-          echo "    return jsonify({'prediction': prediction.tolist()})" >> inference.py
-          echo "if __name__ == '__main__':" >> inference.py
-          echo "    app.run(host='0.0.0.0', port=5000)" >> inference.py
+    # Upload model artifacts to GitHub Actions (opsional)
+    - name: Upload model artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: rf_model
+        path: ./model_dir
 
-      - name: Create Dockerfile
-        run: |
-          echo "FROM python:3.11-slim" > Dockerfile
-          echo "WORKDIR /app" >> Dockerfile
-          echo "COPY ./model_dir/model.pkl ./model.pkl" >> Dockerfile
-          echo "COPY ./inference.py ./inference.py" >> Dockerfile
-          echo "RUN pip install -U pip && pip install pandas scikit-learn flask" >> Dockerfile
-          echo "EXPOSE 5000" >> Dockerfile
-          echo "CMD [\"python\", \"inference.py\"]" >> Dockerfile
+    # Copy inference script and build Docker image
+    - name: Prepare Docker build
+      run: |
+        cp MLProject/inference.py ./inference.py
 
-      - name: Build Docker image
-        run: |
-          docker build -t students-performance-image .
+    - name: Build Docker image
+      run: |
+        docker build -t students-performance-image .
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+    # Authenticate to Docker Hub
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Tag Docker Image
-        run: |
-          docker tag students-performance-image nurfdlah/students-performance-model:latest
+    # Tag Docker image with Docker Hub username and repo
+    - name: Tag Docker image
+      run: |
+        docker tag students-performance-image nurfdlah/students-performance-model:latest
 
-      - name: Push Docker Image
-        run: |
-          docker push nurfdlah/students-performance-model:latest
+    # Push Docker image to Docker Hub
+    - name: Push Docker image to Docker Hub
+      run: |
+        docker push nurfdlah/students-performance-model:latest
