@@ -61,50 +61,16 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      # Download model.pkl from DagsHub
-      - name: Download model.pkl from DagsHub artifacts
+      # Set RUN_ID as environment variable
+      - name: Set RUN_ID environment variable
+        run: echo "RUN_ID=${{ steps.get_run.outputs.run_id }}" >> $GITHUB_ENV
+
+      # Install MLflow CLI if not already
+      - name: Install MLflow CLI
         run: |
-          mkdir -p ./model_dir
-          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/model.pkl" \
-            -o ./model_dir/model.pkl
+          pip install mlflow
 
-      # Upload model artifact (optional)
-      - name: Upload model artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rf_model
-          path: ./model_dir
-
-      # Create Dockerfile
-      - name: Create Dockerfile for model serving
+      # Build Docker image from model
+      - name: Build Docker Model
         run: |
-          echo "FROM python:3.11-slim" > Dockerfile
-          echo "WORKDIR /app" >> Dockerfile
-          echo "COPY ./model_dir/model.pkl ./model.pkl" >> Dockerfile
-          echo "COPY MLProject/inference.py ./inference.py" >> Dockerfile
-          echo "RUN pip install -U pip && pip install pandas scikit-learn flask" >> Dockerfile
-          echo "EXPOSE 5000" >> Dockerfile
-          echo "CMD [\"python\", \"inference.py\"]" >> Dockerfile
-
-      # Build Docker image
-      - name: Build Docker image
-        run: |
-          docker build -t students-performance-image .
-
-      # Login to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      # Tag Docker image sesuai dengan DockerHub repo kamu
-      - name: Tag Docker Image
-        run: |
-          docker tag students-performance-image nurfdlah/students-performance-model:latest
-
-      # Push Docker image ke DockerHub
-      - name: Push Docker Image
-        run: |
-          docker push nurfdlah/students-performance-model:latest
+          mlflow models build-docker --model-uri "runs:/$RUN_ID/model" --name "students-performance-model"
