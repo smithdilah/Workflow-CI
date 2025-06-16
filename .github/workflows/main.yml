@@ -1,4 +1,4 @@
-name: students MLflow
+name: Students MLflow CI/CD - Build & Push Docker
 
 on:
   push:
@@ -15,82 +15,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source code
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      # 2. Setup Python
-      - name: Set up Python 3.12.7
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12.7"
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
 
-      # 3. Install dependencies
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r MLProject/requirements.txt
-          pip install mlflow
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r MLProject/requirements.txt
+        pip install mlflow pyyaml
 
-      # 4. Run MLflow modeling
-      - name: Run MLflow training script
-        run: |
-          cd MLProject
-          python modeling.py
+    - name: Run MLflow model training
+      run: |
+        cd MLProject
+        python modeling.py
 
-      # 5. Get latest MLflow run_id
-      - name: Get latest MLflow run_id
-        id: get_run
-        run: |
-          echo "import mlflow, os" > get_run.py
-          echo "mlflow.set_tracking_uri(\"$MLFLOW_TRACKING_URI\")" >> get_run.py
-          echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
-          echo "exp = client.get_experiment_by_name(\"students-experiment\")" >> get_run.py
-          echo "if exp is None: raise Exception(\"Experiment 'students-experiment' not found!\")" >> get_run.py
-          echo "runs = client.search_runs(exp.experiment_id, order_by=[\"start_time DESC\"], max_results=1)" >> get_run.py
-          echo "run_id = runs[0].info.run_id" >> get_run.py
-          echo "print(\"Found RUN_ID:\", run_id)" >> get_run.py
-          echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
-          python get_run.py
+    - name: Get latest run_id from MLflow
+      id: get_run
+      run: |
+        echo "import mlflow, os" > get_run.py
+        echo "mlflow.set_tracking_uri('${{ env.MLFLOW_TRACKING_URI } }')" >> get_run.py
+        echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
+        echo "exp = client.get_experiment_by_name('students-experiment')" >> get_run.py
+        echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'])" >> get_run.py
+        echo "run_id = runs[0].info.run_id" >> get_run.py
+        echo "print(f'::set-output name=run_id::{run_id}')" >> get_run.py
+        python get_run.py
 
-      # 6. Download model artifacts from DagsHub
-      - name: Download MLflow model artifacts
-        run: |
-          mkdir -p ./model_dir
-          files="MLmodel conda.yaml requirements.txt model.pkl input_example.json serving_input_example.json metric_info.json"
+    - name: Download model artifacts from DagsHub
+      run: |
+        mkdir -p model_dir
+        files="MLmodel conda.yaml requirements.txt model.pkl"
 
-          for file in $files; do
-            echo "Downloading $file..."
-            curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-              "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
-              -o "./model_dir/$file"
-          done
+        for file in $files; do
+          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
+          "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
+          -o "model_dir/$file"
+        done
 
-      # 7. Build Docker image from local model_dir
-      - name: Build Docker image
-        run: |
-          echo "Building Docker image..."
-          DOCKER_IMAGE_NAME="smithdilah/students-model:${{ github.sha }}"
-          mlflow models build-docker \
-            --model-uri ./model_dir \
-            --name "$DOCKER_IMAGE_NAME" \
-            --enable-mlserver
-          echo "Docker image built: $DOCKER_IMAGE_NAME"
+    - name: Validate MLmodel file
+      run: |
+        python -c "import yaml; yaml.safe_load(open('model_dir/MLmodel'))"
 
-      # 8. Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Build Docker image from Dockerfile
+      run: |
+        docker build -t smithdilah/students-model:${{ github.sha }} -f docker/Dockerfile .
 
-      # 9. Push Docker image
-      - name: Push Docker image
-        run: |
-          DOCKER_IMAGE_NAME="smithdilah/students-model:${{ github.sha }}"
-          docker push $DOCKER_IMAGE_NAME
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 10. Log out from Docker Hub
-      - name: Log out from Docker Hub
-        if: always()
-        run: docker logout
+    - name: Push Docker image
+      run: |
+        docker push smithdilah/students-model:${{ github.sha }}
+
+    - name: Log out from Docker
+      if: always()
+      run: docker logout
