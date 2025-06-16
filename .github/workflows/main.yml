@@ -88,7 +88,7 @@ jobs:
           run_id: null
           signature: null
           input_example: input_example.json
-          " > ./model_dir/MLmodel
+          " > ./model_dir
 
       # Upload sebagai artifact GitHub
       - name: Upload to GitHub artifact
