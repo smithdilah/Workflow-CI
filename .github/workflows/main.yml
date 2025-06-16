@@ -69,16 +69,17 @@ jobs:
               -o "./model_dir/$file"
           done
       # Upload model artifacts to GitHub Actions artifact
-      - name: Upload model artifact
+       # Upload the downloaded model as a GitHub Actions artifact
+      - name: Upload to GitHub artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rf_model
+          name: rf_model_artifact
           path: ./model_dir
 
-     # Build Docker image from model
+      # Build a Docker image from the trained MLflow model
       - name: Build Docker Model
         run: |
-          mlflow models build-docker --model-uri ./model_dir --name nurfdlah/students-performance-model
+          mlflow models build-docker --model-uri ./model_dir --name nurfdlah/students-performance-model--name nurfdlah/students-performance-model
       
       # Login to Docker Hub
       - name: Log in to Docker Hub
