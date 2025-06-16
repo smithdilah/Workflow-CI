@@ -1,4 +1,4 @@
-name: CI/CD Students Model - MLflow to DockerHub
+name: Students Model - MLflow to DockerHub
 
 on:
   push:
@@ -43,8 +43,9 @@ jobs:
         echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'])" >> get_run.py
         echo "run_id = runs[0].info.run_id" >> get_run.py
         echo "print(f'run_id={run_id}')" >> get_run.py
-        echo "with open('${{ github.env }}', 'a') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
+        echo "with open('.env_run', 'w') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
         python get_run.py
+        cat .env_run >> $GITHUB_ENV
 
     - name: Download model artifacts from DagsHub
       run: |
@@ -52,8 +53,8 @@ jobs:
         FILES="MLmodel conda.yaml requirements.txt model.pkl"
 
         for FILE in $FILES; do
-          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/$RUN_ID/artifacts/model/$FILE" \
+          curl -L -u "${{ env.MLFLOW_TRACKING_USERNAME }}:${{ env.MLFLOW_TRACKING_PASSWORD }}" \
+            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ env.RUN_ID }}/artifacts/model/$FILE" \
             -o model_dir/$FILE
         done
 
