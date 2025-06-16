@@ -36,15 +36,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r MLProject/requirements.txt
 
-      - name: Run modeling.py (MLflow autolog)
+      - name: Run MLflow modeling script
         run: |
-          python MLProject/modeling.py
+          cd MLProject
+          python modeling.py
 
       - name: Get latest MLflow run_id
         id: get_run
         run: |
           python <<'PY'
           import mlflow, os
+          mlflow.set_tracking_uri("https://dagshub.com/smithdilah/students_dagshub.mlflow")
           client = mlflow.tracking.MlflowClient()
           exp = client.get_experiment_by_name("students-experiment")
           if exp is None:
@@ -79,4 +81,9 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker tag smithdilah/student-performance-model smithdilah/student-performance-model:latest
+          docker push smithdilah/student-performance-model:latest
