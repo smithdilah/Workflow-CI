@@ -1,4 +1,3 @@
-# students_autolog_local.py
 import warnings
 import json
 import pandas as pd
