@@ -61,15 +61,22 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
 
-      # Download model.pkl from DagsHub artifacts
-      - name: Download model.pkl from DagsHub
+      # Download all model artifacts from DagsHub
+      - name: Download all model artifacts from DagsHub
         run: |
           mkdir -p ./model_dir
-          curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/model.pkl" \
-            -o ./model_dir/model.pkl
 
-      # Upload model artifact (opsional)
+          # Daftar file artefak model MLflow yang umum
+          files="MLmodel conda.yaml requirements.txt model.pkl model.json"
+
+          for file in $files; do
+            echo "Downloading $file..."
+            curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
+              "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
+              -o "./model_dir/$file"
+          done
+
+      # Upload model artifact
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
