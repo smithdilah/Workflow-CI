@@ -1,4 +1,4 @@
-name: Students MLflow CI/CD - Build & Push Docker
+name: CI/CD Students Model - MLflow to DockerHub
 
 on:
   push:
@@ -18,10 +18,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Python 3.12
+    - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
-        python-version: "3.12"
+        python-version: '3.10'
 
     - name: Install dependencies
       run: |
@@ -29,39 +29,38 @@ jobs:
         pip install -r MLProject/requirements.txt
         pip install mlflow pyyaml
 
-    - name: Run MLflow model training
+    - name: Train and log ML model with MLflow
       run: |
         cd MLProject
         python modeling.py
 
-    - name: Get latest run_id from MLflow
+    - name: Get latest run_id from DagsHub MLflow
       id: get_run
       run: |
-        echo "import mlflow, os" > get_run.py
-        echo "mlflow.set_tracking_uri('${{ env.MLFLOW_TRACKING_URI } }')" >> get_run.py
-        echo "client = mlflow.tracking.MlflowClient()" >> get_run.py
+        echo "from mlflow import tracking" > get_run.py
+        echo "client = tracking.MlflowClient(tracking_uri='${{ env.MLFLOW_TRACKING_URI }}')" >> get_run.py
         echo "exp = client.get_experiment_by_name('students-experiment')" >> get_run.py
         echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'])" >> get_run.py
         echo "run_id = runs[0].info.run_id" >> get_run.py
-        echo "print(f'::set-output name=run_id::{run_id}')" >> get_run.py
+        echo "print(f'run_id={run_id}')" >> get_run.py
+        echo "with open('${{ github.env }}', 'a') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
         python get_run.py
 
     - name: Download model artifacts from DagsHub
       run: |
         mkdir -p model_dir
-        files="MLmodel conda.yaml requirements.txt model.pkl"
+        FILES="MLmodel conda.yaml requirements.txt model.pkl"
 
-        for file in $files; do
+        for FILE in $FILES; do
           curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-          "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
-          -o "model_dir/$file"
+            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/$RUN_ID/artifacts/model/$FILE" \
+            -o model_dir/$FILE
         done
 
     - name: Validate MLmodel file
-      run: |
-        python -c "import yaml; yaml.safe_load(open('model_dir/MLmodel'))"
+      run: python -c "import yaml; yaml.safe_load(open('model_dir/MLmodel'))"
 
-    - name: Build Docker image from Dockerfile
+    - name: Build Docker image
       run: |
         docker build -t smithdilah/students-model:${{ github.sha }} -f docker/Dockerfile .
 
@@ -75,6 +74,6 @@ jobs:
       run: |
         docker push smithdilah/students-model:${{ github.sha }}
 
-    - name: Log out from Docker
+    - name: Log out Docker
       if: always()
       run: docker logout
