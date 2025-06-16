@@ -74,9 +74,18 @@ jobs:
               -o "./model_dir/$file"
           done
 
-      # Upload model artifacts to GitHub
+      # Upload model artifacts to GitHub Actions artifact
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
           name: rf_model
           path: ./model_dir
+
+      # (Optional) Serve model locally (for DEV)
+      # Note: This step will not run inside GitHub Actions CI — just intended for local dev
+      - name: Serve model locally (DEV ONLY)
+        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
+        run: |
+          echo "Starting MLflow model server..."
+          nohup mlflow models serve -m ./model_dir --port 5005 --env-manager=local > serve.log 2>&1 &
+          echo "Model is being served at http://127.0.0.1:5005/invocations"
