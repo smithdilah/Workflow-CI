@@ -82,5 +82,5 @@ jobs:
         run: |
           mlflow models build-docker \
             --model-uri ./model_dir \
-            --install-mlflow \
-            --name nurfdlah/students-performance-model
+            --name students-performance-model
+
