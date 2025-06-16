@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import mlflow
 import mlflow.sklearn
+from mlflow.models.signature import infer_signature
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -62,8 +63,8 @@ def evaluate_model(model, X_test, y_test) -> dict:
 # 3. PIPELINE UTAMA
 # ------------------------------------------------------------------
 def main():
-    # Aktifkan autolog sebelum training
-    mlflow.sklearn.autolog(log_models=True)
+    # Aktifkan autolog
+    mlflow.sklearn.autolog(log_models=False)  # Nonaktifkan autolog model karena akan manual
 
     # 3‑A. Muat data
     df = load_dataset("namadataset_preprocessing/StudentsPerformance_cleaned.csv")
@@ -75,8 +76,8 @@ def main():
         X, y, test_size=0.2, stratify=y, random_state=42
     )
 
-    # 3‑B. Training + autolog
-    with mlflow.start_run(run_name="rf_students_autolog_local"):
+    # 3‑B. Training dengan run manual
+    with mlflow.start_run(run_name="rf_students_autolog_with_signature"):
         model = RandomForestClassifier(
             n_estimators=100,
             random_state=42,
@@ -84,11 +85,23 @@ def main():
         )
         model.fit(X_train, y_train)
 
-        # 3‑C. Tambahkan metrik test‑set
+        # 3‑C. Signature dan input_example
+        input_example = X_train.iloc[:1]
+        signature = infer_signature(X_train, model.predict(X_train))
+
+        # 3‑D. Simpan model + signature
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path="model",
+            input_example=input_example,
+            signature=signature
+        )
+
+        # 3‑E. Tambahkan metrik test‑set
         extra_metrics = evaluate_model(model, X_test, y_test)
         mlflow.log_metrics({f"test_{k}": v for k, v in extra_metrics.items()})
 
-        # 3‑D. Simpan ringkasan metrik ke artefak JSON
+        # 3‑F. Simpan ringkasan metrik ke artefak JSON
         summary_path = "metric_info.json"
         with open(summary_path, "w") as f:
             json.dump(extra_metrics, f, indent=2)
@@ -96,7 +109,7 @@ def main():
 
         run_id = mlflow.active_run().info.run_id
         print(f"✅ Run ID: {run_id}")
-        print("📦 Artefak & metrik tersimpan di ./mlruns.")
+        print("📦 Artefak & signature tersimpan di ./mlruns.")
 
 
 if __name__ == "__main__":
