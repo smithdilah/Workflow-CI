@@ -1,4 +1,4 @@
-name: Students Model - MLflow to DockerHub
+name: CI/CD Students Model - MLflow to DockerHub
 
 on:
   push:
@@ -43,23 +43,29 @@ jobs:
         echo "runs = client.search_runs(exp.experiment_id, order_by=['start_time DESC'])" >> get_run.py
         echo "run_id = runs[0].info.run_id" >> get_run.py
         echo "print(f'run_id={run_id}')" >> get_run.py
-        echo "with open('.env_run', 'w') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
+        echo "with open('${{ github.env }}', 'a') as f: f.write(f'RUN_ID={run_id}\\n')" >> get_run.py
         python get_run.py
-        cat .env_run >> $GITHUB_ENV
 
     - name: Download model artifacts from DagsHub
       run: |
         mkdir -p model_dir
         FILES="MLmodel conda.yaml requirements.txt model.pkl"
-
         for FILE in $FILES; do
-          curl -L -u "${{ env.MLFLOW_TRACKING_USERNAME }}:${{ env.MLFLOW_TRACKING_PASSWORD }}" \
-            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ env.RUN_ID }}/artifacts/model/$FILE" \
-            -o model_dir/$FILE
+          RESPONSE=$(curl -s -w "%{http_code}" -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
+            "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/$RUN_ID/artifacts/model/$FILE" \
+            -o model_dir/$FILE)
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "❌ Gagal mengunduh $FILE. Status code: $RESPONSE"
+            exit 1
+          fi
         done
 
-    - name: Validate MLmodel file
-      run: python -c "import yaml; yaml.safe_load(open('model_dir/MLmodel'))"
+    - name: Validate MLmodel file (YAML Check)
+      run: |
+        echo "✅ Mengecek isi awal MLmodel:"
+        head -n 20 model_dir/MLmodel
+        echo "✅ Mengecek format YAML..."
+        python -c "import yaml; f='model_dir/MLmodel'; yaml.safe_load(open(f))"
 
     - name: Build Docker image
       run: |
