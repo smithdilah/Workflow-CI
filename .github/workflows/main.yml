@@ -58,35 +58,17 @@ jobs:
           echo "with open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as f: f.write(f\"run_id={run_id}\\n\")" >> get_run.py
           python get_run.py
       # Download all model artifacts from DagsHub
-      - name: Download all model artifacts from DagsHub
+      - name:  Download model artifacts from DagsHub
         run: |
-          mkdir -p ./model_dir
-          files="MLmodel conda.yaml requirements.txt model.pkl input_example.json serving_input_example.json metric_info.json"
-          for file in $files; do
-            echo "Downloading $file..."
-            curl -L -u "$MLFLOW_TRACKING_USERNAME:$MLFLOW_TRACKING_PASSWORD" \
-              "https://dagshub.com/smithdilah/students_dagshub.mlflow/raw/mlruns/0/${{ steps.get_run.outputs.run_id }}/artifacts/model/$file" \
-              -o "./model_dir/$file"
-          done
-     
- 
-    # Upload sebagai artifact GitHub
-      - name: Upload to GitHub artifact
+          echo "Downloading model for run: $RUN_ID"
+          mlflow artifacts download --run-id $RUN_ID --artifact-path random_forest_model -d ./downloaded
+          mv ./downloaded/random_forest_model ./random_forest_model
+
+      - name:  Upload model as GitHub artifact
         uses: actions/upload-artifact@v4
         with:
           name: rf_model_artifact
-          path: ./model_dir
-     
-      - name: 🪵 Debug MLmodel file
-        run: |
-          echo "Isi file MLmodel:"
-          cat ./model_dir/MLmodel
+          path: ./random_forest_model
 
-
-      # Step untuk membangun Docker image dari model MLflow
-      - name: Build Docker Image from MLflow model
-        run: |
-          mlflow models build-docker \
-            --model-uri ./model_dir \
-            --name students-performance-model
-
+      
+  
