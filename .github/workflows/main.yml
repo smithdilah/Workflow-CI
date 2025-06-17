@@ -76,6 +76,11 @@ jobs:
         with:
           name: rf_model_artifact
           path: ./model_dir
+    
+      - name: Debug secrets (non-sensitive)
+        run: |
+          echo "DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}"
+          echo "DOCKERHUB_TOKEN set? ${{ secrets.DOCKERHUB_TOKEN != '' && 'YES' || 'NO' }}"
   
     # Login ke DockerHub
       - name: Login to DockerHub
