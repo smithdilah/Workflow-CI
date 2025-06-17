@@ -76,6 +76,12 @@ jobs:
         with:
           name: rf_model_artifact
           path: ./model_dir
+     
+      - name: 🪵 Debug MLmodel file
+        run: |
+          echo "Isi file MLmodel:"
+          cat ./model_dir/MLmodel
+
 
       # Step untuk membangun Docker image dari model MLflow
       - name: Build Docker Image from MLflow model
